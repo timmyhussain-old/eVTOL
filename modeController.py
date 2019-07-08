@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python
+
 """
 Spyder Editor
 
@@ -37,6 +38,8 @@ class ModeController():
         
         self.pos = None
         
+        self.hold_start = None
+
         # publishers
         self.mode_publisher = rospy.Publisher('/modeController/mode', Int8, queue_size=10)
         self.home_publisher = rospy.Publisher('/modeController/home', Pose, queue_size=10)
@@ -46,45 +49,63 @@ class ModeController():
         rospy.Subscriber('/mavros/local_position/pose', PoseStamped, self.poseCallback)       
         rospy.Subscriber('/mavros/battery',BatteryState,self.batteryCallback)
         
-        def hasInitialized(self):
-            check1 = self.battery_status != None
-            check2 = self.battery_level > RETURN_BATTERY_THRESHOLD
-            return check1 and check2
+    def hasInitialized(self):
+        check1 = self.battery_status != None
+        check2 = self.battery_level > RETURN_BATTERY_THRESHOLD
+        return check1 and check2
+    
+    def hasTakenOff(self):
+        return self.pos.z > TAKEOFF_ALT_THRESHOLD
+    
+    def stateCallback(self, msg):
+        #the message contains the current mode of the drone
+        self.drone_mode = msg.mode
         
-        def hasTakenOff(self):
-            return self.pos.z > TAKEOFF_ALT_THRESHOLD
+    def poseCallback(self, msg):
+        pos = msg.pose.position
+        x = pos.x
+        y = pos.y
+        z = pos.z
         
-        def stateCallback(self, msg):
-            #the message contains the current mode of the drone
-            self.drone_mode = msg.mode
-            
-        def poseCallback(self, msg):
-            pos = msg.pose.position
-            x = pos.x
-            y = pos.y
-            z = pos.z
-            
-            self.pos = msg.pose.position
-            self.pos.x = x
-            self.pos.y = y
-            self.pos.z = z
-            
-        def batteryCallback(self, msg):
-            self.battery_status = msg
-            self.battery_level = msg.percentage
-            
-        def determineMode(self):
-            if self.
-            
-            elif self.mode = Mode.IDLE:
-                if self.drone_mode == "OFFBOARD" and self.hasInitialized():
-                    self.mode = Mode.TAKEOFF
-            
-            elif self.mode = Mode.TAKEOFF and self.hasTakenOff():
-                self.mode = Mode.HOLD
-                self.hold_start = 
-            
-            elif self.mode = Mode.HOLD:
+        self.pos = msg.pose.position
+        self.pos.x = x
+        self.pos.y = y
+        self.pos.z = z
+        
+        rospy.loginfo("Current x: %s\n Current y: %s\n Current z: %s\n", x, y, z)
+
+    def batteryCallback(self, msg):
+        self.battery_status = msg
+        self.battery_level = msg.percentage
+        
+    def determineMode(self):
+       # if self.
+        
+        if self.mode == Mode.IDLE:
+            if self.drone_mode == "OFFBOARD" and self.hasInitialized():
+                self.mode = Mode.TAKEOFF
+        
+        elif self.mode == Mode.TAKEOFF and self.hasTakenOff():
+            self.mode = Mode.HOLD
+            self.hold_start = rospy.get_rostime()
+        
+        #elif self.mode = Mode.HOLD:
+    def publish(self):
+        msg = Int8()
+        msg.data = self.mode.value
+        self.mode_publisher.publish(msg)
+
+    def run(self):
+        rate = rospy.Rate(10)
+
+        while not rospy.is_shutdown():
+            self.determineMode()
+            self.publish()
+            rate.sleep()
+
+if __name__ == '__main__':
+    mode_controller = ModeController()
+    mode_controller.run()
                 
                     
                 
