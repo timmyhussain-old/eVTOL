@@ -9,11 +9,11 @@ This is a temporary script file.
 import rospy 
 from enum import Enum
 from std_msgs.msg import Int8, Bool, Float32
-from geometry_msgs.msg import Pose, PoseStamped
+from geometry_msgs.msg import Pose, PoseStamped, Vector3
 from sensor_msgs.msg import BatteryState
 from mavros_msgs.msg import State
 
-TAKEOFF_ALT_THRESHOLD = 5          # Altitude at which we have finished take-off
+TAKEOFF_ALT_THRESHOLD = 3          # Altitude at which we have finished take-off
 RETURN_BATTERY_THRESHOLD = 0.40     # battery threshold for returning home
 HOME_POS_THRESH = 5.0               # Position error Threshold for determining once we're home
 IDLE_TIME = 5.0                     # sit in idle for this long before taking off
@@ -27,16 +27,16 @@ class Mode(Enum):
 
 class ModeController():
     def __init__(self):
-        rospy.init_node("mode_controller", anonymous=True)
+        rospy.init_node("modeController", anonymous=True)
         
-        self.mode = Mode.IDLE
+        self.mode = Mode.TAKEOFF
         self.prev_mode = None
         self.drone_mode = None
         self.battery_level = 0.0
         self.battery_status = None
         self.mission_start_time = None
         
-        self.pos = None
+        self.pos = Vector3()
         
         self.hold_start = None
 
@@ -72,7 +72,7 @@ class ModeController():
         self.pos.y = y
         self.pos.z = z
         
-        rospy.loginfo("Current x: %s\n Current y: %s\n Current z: %s\n", x, y, z)
+        #rospy.loginfo("Current x: %s\n Current y: %s\n Current z: %s\n", x, y, z)
 
     def batteryCallback(self, msg):
         self.battery_status = msg
