@@ -1,12 +1,36 @@
 #!/usr/bin/env python
 
 import rospy
-import numpy
-from modeController import Mode
+import numpy as np
+from modeController import Mode, TypeMasks
 
 from std_msgs.msg import Int8, Float64
-from geometry_msgs.msg import PoseStamped, Point, Vector3, TwistStamped
+from geometry_msgs.msg import PoseStamped, Point, Vector3, TwistStamped, AccelWithCovarianceStamped
 from mavros_msgs.msg import PositionTarget, State
+
+
+def pointcontroller(current_pos, desired_pos, current_vel, current_acc): 
+	k_p = 1.0
+	k_d = 0.5
+	k_i = 0.5
+
+	des_pos = np.array([desired_pos.x, desired_pos.y, desired_pos.z])
+	cur_pos = np.array([current_pos.x, current_pos.y, current_pos.z])
+	cur_vel = np.array([current_vel.x, current_vel.y, current_vel.z])
+	cur_acc = np.array([current_acc.x, current_acc.y, current_acc.z])
+	
+	error = des_pos-cur_pos
+	# error = Vector3()
+
+
+	cmd_vel = k_i * error + k_p * cur_vel #- k_d * cur_acc
+
+	ret = Vector3()
+	ret.x = 0 #cmd_vel[0]
+	ret.y = 0 #cmd_vel[1]
+	ret.z = cmd_vel[2]
+
+	return ret
 
 class Controller():
 	def __init__(self):
@@ -20,13 +44,18 @@ class Controller():
 
 		#subscribers
 		rospy.Subscriber('/modeController/mode', Int8, self.modeCallback)
+        
+		rospy.Subscriber('/mavros/local_position/velocity_local', TwistStamped, self.velocityCallback)
+		rospy.Subscriber('/mavros/local_position/accel', AccelWithCovarianceStamped, self.accelCallback)
+		rospy.Subscriber('/mavros/local_position/pose', PoseStamped, self.poseCallback)
 
 		self.mode = None
 		self.takeoff = None
 		self.loiter = None
 		self.idle = None
-		self.pos = None
-		self.vel = None
+		self.pos = Vector3()
+		self.vel = Vector3()
+		self.accel = Vector3()
 
 		self.cmd = PositionTarget()
 		self.cmd.coordinate_frame = PositionTarget.FRAME_LOCAL_NED
@@ -47,13 +76,40 @@ class Controller():
 		self.mode = Mode(msg.data)
 		#ros.loginfo("Current mode: %s", self.mode.data)
 
+	def poseCallback(self, msg):
+		self.pos.x = msg.pose.position.x
+		self.pos.y = msg.pose.position.y
+		self.pos.z = msg.pose.position.z
+
+	def velocityCallback(self, msg):
+		self.vel.x = msg.twist.linear.x
+		self.vel.y = msg.twist.linear.y
+		self.vel.z = msg.twist.linear.z
+
+	def accelCallback(self, msg):
+		self.accel.x = msg.accel.linear.x
+		self.accel.y = msg.accel.linear.y
+		self.accel.z = msg.accel.linear.z
+
 	def control(self):
 		#print(self.mode)
 		if self.mode == Mode.TAKEOFF:
-			self.cmd.type_mask = 0b0001110111111000	#takeoff type mask
+			#self.cmd.type_mask = 0b0001110111111100	#takeoff type mask
+			#self.cmd.type_mask = TypeMasks.MASK_TAKEOFF_POSITION.value #works as position control takeoff
+			desired_pos = Vector3()
+			desired_pos.x = desired_pos.y = 0
+			desired_pos.z = 10
+
+			self.cmd.type_mask = 0b0000111111000111
+			self.cmd_vel = pointcontroller(self.pos, desired_pos, self.vel, self.accel)
+
 
 		if self.mode == Mode.HOLD:
-			self.cmd.type_mask = 0b0100111111111100
+			#self.cmd.type_mask = 0b0100111111111100
+			self.cmd_pos.x = 20
+			#self.cmd_pos.z = 5
+			self.cmd.type_mask = TypeMasks.MASK_POSITION.value
+			
 
 	def publish(self):
 		self.cmd.header.stamp = rospy.get_rostime()
