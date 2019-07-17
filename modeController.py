@@ -24,6 +24,7 @@ class Mode(Enum):
     TAKEOFF = 2
     HOLD = 3
     LAND = 4
+    USER = 5
 
 class TypeMasks(Enum): 
     MASK_POSITION =         0b0000111111111000
@@ -96,8 +97,8 @@ class ModeController():
             if self.drone_mode == "OFFBOARD" and self.hasInitialized():
                 self.mode = Mode.TAKEOFF
         
-        #elif self.mode == Mode.TAKEOFF and self.hasTakenOff():
-            self.mode = Mode.HOLD
+        elif self.mode == Mode.TAKEOFF and self.hasTakenOff():
+            self.mode = Mode.USER
             self.hold_start = rospy.get_rostime()
         
         #elif self.mode = Mode.HOLD:

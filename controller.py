@@ -3,7 +3,7 @@
 import rospy
 import numpy as np
 from modeController import Mode, TypeMasks
-
+	
 from std_msgs.msg import Int8, Float64
 from geometry_msgs.msg import PoseStamped, Point, Vector3, TwistStamped, AccelWithCovarianceStamped
 from mavros_msgs.msg import PositionTarget, State
@@ -23,11 +23,11 @@ def pointcontroller(current_pos, desired_pos, current_vel, current_acc):
 	# error = Vector3()
 
 
-	cmd_vel = k_i * error + k_p * cur_vel #- k_d * cur_acc
+	cmd_vel = k_p * error - k_i * cur_vel - k_d * cur_acc
 
 	ret = Vector3()
-	ret.x = 0 #cmd_vel[0]
-	ret.y = 0 #cmd_vel[1]
+	ret.x = cmd_vel[0]
+	ret.y = cmd_vel[1]
 	ret.z = cmd_vel[2]
 
 	return ret
@@ -48,6 +48,7 @@ class Controller():
 		rospy.Subscriber('/mavros/local_position/velocity_local', TwistStamped, self.velocityCallback)
 		rospy.Subscriber('/mavros/local_position/accel', AccelWithCovarianceStamped, self.accelCallback)
 		rospy.Subscriber('/mavros/local_position/pose', PoseStamped, self.poseCallback)
+		rospy.Subscriber('/userInput/position', Vector3, self.userinputCallback)
 
 		self.mode = None
 		self.takeoff = None
@@ -109,7 +110,15 @@ class Controller():
 			self.cmd_pos.x = 20
 			#self.cmd_pos.z = 5
 			self.cmd.type_mask = TypeMasks.MASK_POSITION.value
-			
+
+		if self.mode == Mode.USER:
+			self.cmd.type_mask = 0b0000111111000111
+			self.cmd_vel = pointcontroller(self.pos, self.cmd_pos, self.vel, self.accel)
+	
+	def userinputCallback(self, msg):
+		self.cmd_pos.x = msg.x
+		self.cmd_pos.y = msg.y
+		self.cmd_pos.z = msg.z
 
 	def publish(self):
 		self.cmd.header.stamp = rospy.get_rostime()
