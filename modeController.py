@@ -13,7 +13,7 @@ from geometry_msgs.msg import Pose, PoseStamped, Vector3
 from sensor_msgs.msg import BatteryState
 from mavros_msgs.msg import State
 
-TAKEOFF_ALT_THRESHOLD = 3          # Altitude at which we have finished take-off
+TAKEOFF_ALT_THRESHOLD = 9          # Altitude at which we have finished take-off
 RETURN_BATTERY_THRESHOLD = 0.40     # battery threshold for returning home
 HOME_POS_THRESH = 5.0               # Position error Threshold for determining once we're home
 IDLE_TIME = 5.0                     # sit in idle for this long before taking off
@@ -22,9 +22,10 @@ MAX_BATTERY_CHARGE = 4400.          # Maximum battery charge in Mah
 class Mode(Enum):
     IDLE = 1
     TAKEOFF = 2
-    HOLD = 3
-    LAND = 4
-    USER = 5
+    TRANSITION_FW = 3
+    HOLD = 4
+    LAND = 5
+    USER = 6
 
 class TypeMasks(Enum): 
     MASK_POSITION =         0b0000111111111000
@@ -36,6 +37,13 @@ class TypeMasks(Enum):
     MASK_LAND =             0b0010111111111111
     MASK_LOITER_POSITION =  0b0100111111111000
     MASK_IDLE_POSITION =    0b1000111111111000
+
+class MavVtolState(Enum):
+    MAV_VTOL_STATE_UNDEFINED = 0
+    MAV_VTOL_STATE_TRANSITION_TO_FW = 1
+    MAV_VTOL_STATE_TRANSITION_TO_MC = 2
+    MAV_VTOL_STATE_MC = 3
+    MAV_VTOL_STATE_FW = 4
 
 class ModeController():
     def __init__(self):
@@ -50,7 +58,7 @@ class ModeController():
         
         self.pos = Vector3()
         
-        self.hold_start = None
+        self.transition_start = None
 
         # publishers
         self.mode_publisher = rospy.Publisher('/modeController/mode', Int8, queue_size=10)
@@ -98,8 +106,14 @@ class ModeController():
                 self.mode = Mode.TAKEOFF
         
         elif self.mode == Mode.TAKEOFF and self.hasTakenOff():
+            # self.mode = Mode.TRANSITION_FW
+            # self.transition_start = rospy.get_rostime()
             self.mode = Mode.USER
-            self.hold_start = rospy.get_rostime()
+
+        elif self.mode == Mode.TRANSITION_FW:
+            now = rospy.get_rostime()
+            if now.secs - self.transition_start.secs > 10:
+                self.mode = Mode.USER
         
         #elif self.mode = Mode.HOLD:
     def publish(self):

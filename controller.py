@@ -2,7 +2,8 @@
 
 import rospy
 import numpy as np
-from modeController import Mode, TypeMasks
+from mavros_msgs.srv import CommandLong
+from modeController import Mode, TypeMasks, MavVtolState
 	
 from std_msgs.msg import Int8, Float64
 from geometry_msgs.msg import PoseStamped, Point, Vector3, TwistStamped, AccelWithCovarianceStamped
@@ -10,9 +11,9 @@ from mavros_msgs.msg import PositionTarget, State
 
 
 def pointcontroller(current_pos, desired_pos, current_vel, current_acc): 
-	k_p = 1.0
-	k_d = 0.5
-	k_i = 0.5
+	k_p = 1.4
+	k_d = 1.0
+	k_i = 0.2
 
 	des_pos = np.array([desired_pos.x, desired_pos.y, desired_pos.z])
 	cur_pos = np.array([current_pos.x, current_pos.y, current_pos.z])
@@ -50,6 +51,10 @@ class Controller():
 		rospy.Subscriber('/mavros/local_position/pose', PoseStamped, self.poseCallback)
 		rospy.Subscriber('/userInput/position', Vector3, self.userinputCallback)
 
+		#services
+		self.cmd_long = rospy.ServiceProxy('mavros_msgs/CommandLong', CommandLong)
+
+
 		self.mode = None
 		self.takeoff = None
 		self.loiter = None
@@ -70,7 +75,7 @@ class Controller():
 		self.cmd_pos = Vector3()
 		self.cmd_pos.x = 0
 		self.cmd_pos.y = 0
-		self.cmd_pos.z = 5
+		self.cmd_pos.z = 0
 
 	def modeCallback(self, msg):
 		#print("inside modeCallback")
@@ -101,17 +106,42 @@ class Controller():
 			desired_pos.x = desired_pos.y = 0
 			desired_pos.z = 10
 
+			self.cmd_pos.x = desired_pos.x
+			self.cmd_pos.y = desired_pos.y
+			self.cmd_pos.z = desired_pos.z
+
 			self.cmd.type_mask = 0b0000111111000111
-			self.cmd_vel = pointcontroller(self.pos, desired_pos, self.vel, self.accel)
+			self.cmd_vel = pointcontroller(self.pos, self.cmd_pos, self.vel, self.accel)
 
+		elif self.mode == Mode.TRANSITION_FW:
+			#rospy.wait_for_service('mavros_msgs/CommandLong')
+			
+			'''
 
-		if self.mode == Mode.HOLD:
+				params =	{'bool' = False,
+						'command' = 3000,
+						'param1' = MavVtolState.MAV_VTOL_STATE_MC,
+						'param2' = 0,
+						'param3' = 0,
+						'param4' = 0,
+						'param5' = 0, 
+						'param6' = 0,
+						'param7' = 0}
+						'''
+			# try:
+				# self.cmd_long(command = 3000, param1 = MavVtolState.MAV_VTOL_STATE_FW, param2 = 0, param3 = 0, param4 = 0, param5 = 0, param6 = 0, param7 = 0)
+			# except:
+			# 	pass
+			#self.mode = Mode.USER
+   			pass
+
+		elif self.mode == Mode.HOLD:
 			#self.cmd.type_mask = 0b0100111111111100
-			self.cmd_pos.x = 20
+			#self.cmd_pos.x = 20
 			#self.cmd_pos.z = 5
 			self.cmd.type_mask = TypeMasks.MASK_POSITION.value
 
-		if self.mode == Mode.USER:
+		elif self.mode == Mode.USER:
 			self.cmd.type_mask = 0b0000111111000111
 			self.cmd_vel = pointcontroller(self.pos, self.cmd_pos, self.vel, self.accel)
 	
