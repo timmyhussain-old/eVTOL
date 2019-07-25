@@ -2,17 +2,18 @@
 
 import rospy
 import numpy as np
-from mavros_msgs.srv import CommandLong
+#from mavros_msgs.srv import CommandLong
+import mavros_msgs.srv
 from modeController import Mode, TypeMasks, MavVtolState
 	
 from std_msgs.msg import Int8, Float64
-from geometry_msgs.msg import PoseStamped, Point, Vector3, TwistStamped, AccelWithCovarianceStamped
-from mavros_msgs.msg import PositionTarget, State
+from geometry_msgs.msg import PoseStamped, Point, Vector3, TwistStamped, AccelWithCovarianceStamped, Quaternion
+from mavros_msgs.msg import PositionTarget, State, Thrust, AttitudeTarget
 
 
 def pointcontroller(current_pos, desired_pos, current_vel, current_acc): 
-	k_p = 1.4
-	k_d = 1.0
+	k_p = 1.0
+	k_d = 0.8
 	k_i = 0.2
 
 	des_pos = np.array([desired_pos.x, desired_pos.y, desired_pos.z])
@@ -41,6 +42,8 @@ class Controller():
 
 		#publishers
 		self.cmd_pub = rospy.Publisher('/mavros/setpoint_raw/local', PositionTarget, queue_size=10)
+		self.cmd_att = rospy.Publisher('/mavros/setpoint_raw/attitude', AttitudeTarget, queue_size=10)
+		#self.cmd_thrust = rospy.Publisher('/mavros/setpoint_attitude/thrust', Thrust, queue_size = 10) 
 
 
 		#subscribers
@@ -52,7 +55,7 @@ class Controller():
 		rospy.Subscriber('/userInput/position', Vector3, self.userinputCallback)
 
 		#services
-		self.cmd_long = rospy.ServiceProxy('mavros_msgs/CommandLong', CommandLong)
+		self.cmd_long = rospy.ServiceProxy('command_long', mavros_msgs.srv.CommandLong)
 
 
 		self.mode = None
@@ -63,6 +66,7 @@ class Controller():
 		self.vel = Vector3()
 		self.accel = Vector3()
 
+		'''
 		self.cmd = PositionTarget()
 		self.cmd.coordinate_frame = PositionTarget.FRAME_LOCAL_NED
 		self.cmd.type_mask = 0b0000111111000111		#mask velocity
@@ -76,6 +80,7 @@ class Controller():
 		self.cmd_pos.x = 0
 		self.cmd_pos.y = 0
 		self.cmd_pos.z = 0
+		'''
 
 	def modeCallback(self, msg):
 		#print("inside modeCallback")
@@ -100,6 +105,7 @@ class Controller():
 	def control(self):
 		#print(self.mode)
 		if self.mode == Mode.TAKEOFF:
+			'''
 			#self.cmd.type_mask = 0b0001110111111100	#takeoff type mask
 			#self.cmd.type_mask = TypeMasks.MASK_TAKEOFF_POSITION.value #works as position control takeoff
 			desired_pos = Vector3()
@@ -112,8 +118,42 @@ class Controller():
 
 			self.cmd.type_mask = 0b0000111111000111
 			self.cmd_vel = pointcontroller(self.pos, self.cmd_pos, self.vel, self.accel)
+			'''
 
+			#working on thrust
+			'''
+			desired_pos = Vector3()
+			desired_pos.x = desired_pos.y = 0
+			desired_pos.z = 10
+
+			vel = Vector3()
+			vel = pointcontroller(self.pos, desired_pos, self.vel, self.accel)
+			cmd = PositionTarget()
+			cmd.coordinate_frame = PositionTarget.FRAME_LOCAL_NED
+			cmd.type_mask = 0b0000100111000011
+
+			cmd.velocity = vel
+			cmd.position = Point()
+			cmd.position.x = desired_pos.x
+			cmd.position.y = desired_pos.y
+			cmd.position.z = desired_pos.z
+			self.cmd_pub.publish(cmd)
+			'''
+
+			
+			att = AttitudeTarget()
+			att.type_mask = 0b000111
+			att.thrust = 0.750
+			att.orientation = Quaternion()
+			att.orientation.w = 1.0
+			att.orientation.x = att.orientation.y = att.orientation.z = 0.3
+			self.cmd_att.publish(att)
+			
 		elif self.mode == Mode.TRANSITION_FW:
+			thrust_msg = Thrust()
+			thrust_msg.header.stamp = rospy.get_rostime()
+			thrust_msg.thrust = 1
+			self.cmd_thrust.publish(thrust_msg)
 			#rospy.wait_for_service('mavros_msgs/CommandLong')
 			
 			'''
@@ -129,11 +169,13 @@ class Controller():
 						'param7' = 0}
 						'''
 			# try:
-				# self.cmd_long(command = 3000, param1 = MavVtolState.MAV_VTOL_STATE_FW, param2 = 0, param3 = 0, param4 = 0, param5 = 0, param6 = 0, param7 = 0)
-			# except:
-			# 	pass
+			# 	#self.cmd_long(command = 3000, param1 = MavVtolState.MAV_VTOL_STATE_FW, param2 = 0, param3 = 0, param4 = 0, param5 = 0, param6 = 0, param7 = 0)
+			# 	self.cmd_long()
+			# except rospy.ServiceException as exc:
+			# 	print("Service did not process request: "+str(exc))
+
 			#self.mode = Mode.USER
-   			pass
+   			# pass
 
 		elif self.mode == Mode.HOLD:
 			#self.cmd.type_mask = 0b0100111111111100
@@ -151,16 +193,18 @@ class Controller():
 		self.cmd_pos.z = msg.z
 
 	def publish(self):
+		'''
 		self.cmd.header.stamp = rospy.get_rostime()
 		self.cmd.velocity = self.cmd_vel
 		self.cmd.position = self.cmd_pos
 		self.cmd_pub.publish(self.cmd)
+		'''
 
 	def run(self):
 		rate = rospy.Rate(10)
 		while not rospy.is_shutdown():
 			self.control()
-			self.publish()
+			#self.publish()
 			rate.sleep()
 
 if __name__ == '__main__':
