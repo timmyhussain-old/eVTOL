@@ -66,11 +66,12 @@ class Controller():
 		self.vel = Vector3()
 		self.accel = Vector3()
 
-		'''
+		
 		self.cmd = PositionTarget()
 		self.cmd.coordinate_frame = PositionTarget.FRAME_LOCAL_NED
 		self.cmd.type_mask = 0b0000111111000111		#mask velocity
 
+		'''
 		self.cmd_vel = Vector3()
 		self.cmd_vel.x = 0	#E
 		self.cmd_vel.y = 0	#N
@@ -105,17 +106,28 @@ class Controller():
 	def control(self):
 		#print(self.mode)
 		if self.mode == Mode.TAKEOFF:
-			'''
+			
+			
 			#self.cmd.type_mask = 0b0001110111111100	#takeoff type mask
-			#self.cmd.type_mask = TypeMasks.MASK_TAKEOFF_POSITION.value #works as position control takeoff
+			self.cmd.type_mask = TypeMasks.MASK_TAKEOFF_POSITION.value #works as position control takeoff
+			
+			#position control
+			self.cmd.type_mask = TypeMasks.MASK_POSITION.value
 			desired_pos = Vector3()
 			desired_pos.x = desired_pos.y = 0
 			desired_pos.z = 10
 
-			self.cmd_pos.x = desired_pos.x
-			self.cmd_pos.y = desired_pos.y
-			self.cmd_pos.z = desired_pos.z
+			self.cmd.header.stamp = rospy.get_rostime()
+			self.cmd.position = desired_pos
+			self.cmd_pub.publish(self.cmd)
 
+
+			# self.cmd_pos.x = desired_pos.x
+			# self.cmd_pos.y = desired_pos.y
+			# self.cmd_pos.z = desired_pos.z
+
+			#velocity control
+			'''
 			self.cmd.type_mask = 0b0000111111000111
 			self.cmd_vel = pointcontroller(self.pos, self.cmd_pos, self.vel, self.accel)
 			'''
@@ -140,20 +152,39 @@ class Controller():
 			self.cmd_pub.publish(cmd)
 			'''
 
-			
+			#attitude control: thrust command and no rotation quaternion
+			'''
 			att = AttitudeTarget()
 			att.type_mask = 0b000111
 			att.thrust = 0.750
 			att.orientation = Quaternion()
 			att.orientation.w = 1.0
-			att.orientation.x = att.orientation.y = att.orientation.z = 0.3
+			att.orientation.x = att.orientation.y = att.orientation.z = 0.0
 			self.cmd_att.publish(att)
+			'''
+
+
 			
 		elif self.mode == Mode.TRANSITION_FW:
+			#attempt at pure thrust command: didn't work
+			'''
 			thrust_msg = Thrust()
 			thrust_msg.header.stamp = rospy.get_rostime()
 			thrust_msg.thrust = 1
 			self.cmd_thrust.publish(thrust_msg)
+			'''
+
+			#attitude control: thrust command and no rotation quaternion
+			# '''
+			att = AttitudeTarget()
+			att.type_mask = 0b000111
+			att.thrust = 0.750
+			att.orientation = Quaternion()
+			att.orientation.w = 1.0
+			att.orientation.x = att.orientation.y = att.orientation.z = 0.0
+			self.cmd_att.publish(att)
+			# '''
+			
 			#rospy.wait_for_service('mavros_msgs/CommandLong')
 			
 			'''
@@ -168,11 +199,11 @@ class Controller():
 						'param6' = 0,
 						'param7' = 0}
 						'''
-			# try:
-			# 	#self.cmd_long(command = 3000, param1 = MavVtolState.MAV_VTOL_STATE_FW, param2 = 0, param3 = 0, param4 = 0, param5 = 0, param6 = 0, param7 = 0)
-			# 	self.cmd_long()
-			# except rospy.ServiceException as exc:
-			# 	print("Service did not process request: "+str(exc))
+			try:
+				# self.cmd_long(command = 3000, param1 = MavVtolState.MAV_VTOL_STATE_FW, param2 = 0, param3 = 0, param4 = 0, param5 = 0, param6 = 0, param7 = 0)
+				self.cmd_long()
+			except rospy.ServiceException as exc:
+				print("Service did not process request: "+str(exc))
 
 			#self.mode = Mode.USER
    			# pass
