@@ -2,6 +2,7 @@
 
 import rospy
 import numpy as np
+import numpy.linalg as npl
 #from mavros_msgs.srv import CommandLong
 import mavros_msgs.srv
 from modeController import Mode, TypeMasks, MavVtolState
@@ -11,6 +12,34 @@ from geometry_msgs.msg import PoseStamped, Point, Vector3, TwistStamped, AccelWi
 from mavros_msgs.msg import PositionTarget, State, Thrust, AttitudeTarget
 from sensor_msgs.msg import Imu
 
+def xte(p1, p2, p3):
+	p1 = np.array([p1.x, p1.y])
+	p2 = np.array([p2.x, p2.y])
+	p3 = np.array([p3.x, p3.y])
+
+	xte = np.cross(p2-p1,p3-p1)/norm(p2-p1)
+	return xte
+
+def getQuaternion(angle, axis):
+	if axis == 'x':
+		arr = np.array([1, 1, 0, 0])
+	elif axis == 'y':
+		arr = np.array([1, 0, 1, 0])
+	elif axis == 'z':
+		arr = np.array([1, 0, 0, 1])
+
+	rad = 0.5*angle *np.pi/180
+	qtrnion = arr*(np.array([np.cos(rad), np.sin(rad), np.sin(rad), np.sin(rad)]))
+
+	# qternion = arr * qternion
+
+	quaternion = Quaternion()
+
+	quaternion.w = qtrnion[0]
+	quaternion.x = qtrnion[1]
+	quaternion.y = qtrnion[2]
+	quaternion.z = qtrnion[3]
+	return quaternion
 
 def pointcontroller(current_pos, desired_pos, current_vel, current_acc): 
 	k_p = 1.0
@@ -54,7 +83,9 @@ class Controller():
 		rospy.Subscriber('/mavros/local_position/accel', AccelWithCovarianceStamped, self.accelCallback)
 		rospy.Subscriber('/mavros/local_position/pose', PoseStamped, self.poseCallback)
 		rospy.Subscriber('/userInput/position', Vector3, self.userinputCallback)
+		# rospy.Subscriber('/navigation/waypoint')
 		rospy.Subscriber('/mavros/imu/data', Imu, self.imuCallback)
+		rospy.Subscriber('/mavros/global_position/compass_hdg', Float64, self.headingCallback)
 
 		#services
 		self.cmd_long = rospy.ServiceProxy('command_long', mavros_msgs.srv.CommandLong)
@@ -64,10 +95,11 @@ class Controller():
 		self.takeoff = None
 		self.loiter = None
 		self.idle = None
-		self.pos = Vector3()
+		self.pos = Point()
 		self.vel = Vector3()
 		self.accel = Vector3()
 		self.orientation = Quaternion()
+		self.heading = Float64()
 
 		
 		self.cmd = PositionTarget()
@@ -112,6 +144,12 @@ class Controller():
 		self.orientation.y = msg.orientation.y
 		self.orientation.z = msg.orientation.z
 		
+		# rospy.loginfo("current w: %s\n Current x: %s\nCurrent y: %s\nCurrent z: %s\n", self.orientation.w, self.orientation.x, self.orientation.y, self.orientation.z)
+
+	def headingCallback(self, msg):
+		self.heading.data = msg.data
+		
+		# rospy.loginfo("current heading: %s\n", msg.data)
 
 	def control(self):
 		#print(self.mode)
@@ -163,17 +201,23 @@ class Controller():
 			'''
 
 			#attitude control: thrust command and no rotation quaternion
-			'''
+			# '''
 			att = AttitudeTarget()
 			att.type_mask = 0b000111
 			att.thrust = 0.750
 			att.orientation = Quaternion()
 			att.orientation.w = 1.0
-			att.orientation.x = att.orientation.y = att.orientation.z = 0.0
+			att.orientation.x = 0.0
+			att.orientation.y = 0.0 
+			att.orientation.z = 0.0
 			self.cmd_att.publish(att)
-			'''
+			# '''
 
+			y = np.array([10, self.pos.y])
+			x = np.array([10, self.pos.x])
+			angle_to_point = np.arctan2(y, x)[0] * 180/np.pi
 
+			# print(angle_to_point)
 			
 		elif self.mode == Mode.TRANSITION_FW:
 			#attempt at pure thrust command: didn't work
@@ -227,13 +271,46 @@ class Controller():
 		elif self.mode == Mode.USER:
 			self.cmd.type_mask = 0b0000111111000111
 			self.cmd_vel = pointcontroller(self.pos, self.cmd_pos, self.vel, self.accel)
+
 		elif self.mode == Mode.WAYPOINT:
 			#get heading
+			# orientation saved in self.orientation
 
 			#get bearing from current position to intended position
+			waypoint_1 = Point()
+			waypoint_1.x = -30
+			waypoint_1.y = -10
+			waypoint_1.z = 10
+
+			waypoint_2 = Point()
+			waypoint_2.x = 20
+			waypoint_2.y = 20
+			waypoint_2.z = 10
+
+			y = np.array([waypoint_1.y, self.pos.y])
+			x = np.array([waypoint_1.x, self.pos.x])
+			angle_to_point = np.arctan2(y, x)[0] * 180/np.pi
+
 			#get current heading
+			#heading saved in self.heading
+			angle_control_input = angle_to_point - self.heading.data
+
+			quaternion = getQuaternion(angle_control_input, 'x')
+
+			att = AttitudeTarget()
+			att.type_mask = 0b000111
+			att.thrust = 0.750
+			att.orientation = Quaternion()
+			att.orientation.w = quaternion.w
+			att.orientation.x = quaternion.x
+			att.orientation.y = quaternion.y
+			att.orientation.z = quaternion.z
+			self.cmd_att.publish(att)
+			# xte = xte()
+
+
 			#pid control to get required orientation to face that heading
-			#will probably need to do some kind of conversino between the units of orientation
+			#will probably need to do some kind of conversion between the units of orientation
 			pass
 	
 	def userinputCallback(self, msg):

@@ -24,7 +24,7 @@ class Mode(Enum):
     TAKEOFF = 2
     TRANSITION_FW = 3
     HOLD = 4
-    WAYPOINT_FW = 5
+    WAYPOINT = 5
     LAND = 6
     USER = 7
 
@@ -110,6 +110,7 @@ class ModeController():
             # self.mode = Mode.TRANSITION_FW
             # self.transition_start = rospy.get_rostime()
             # self.mode = Mode.USER
+            self.mode = Mode.WAYPOINT
             pass
 
         elif self.mode == Mode.TRANSITION_FW:
