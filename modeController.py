@@ -24,8 +24,9 @@ class Mode(Enum):
     TAKEOFF = 2
     TRANSITION_FW = 3
     HOLD = 4
-    LAND = 5
-    USER = 6
+    WAYPOINT_FW = 5
+    LAND = 6
+    USER = 7
 
 class TypeMasks(Enum): 
     MASK_POSITION =         0b0000111111111000

@@ -9,6 +9,7 @@ from modeController import Mode, TypeMasks, MavVtolState
 from std_msgs.msg import Int8, Float64
 from geometry_msgs.msg import PoseStamped, Point, Vector3, TwistStamped, AccelWithCovarianceStamped, Quaternion
 from mavros_msgs.msg import PositionTarget, State, Thrust, AttitudeTarget
+from sensor_msgs.msg import Imu
 
 
 def pointcontroller(current_pos, desired_pos, current_vel, current_acc): 
@@ -53,6 +54,7 @@ class Controller():
 		rospy.Subscriber('/mavros/local_position/accel', AccelWithCovarianceStamped, self.accelCallback)
 		rospy.Subscriber('/mavros/local_position/pose', PoseStamped, self.poseCallback)
 		rospy.Subscriber('/userInput/position', Vector3, self.userinputCallback)
+		rospy.Subscriber('/mavros/imu/data', Imu, self.imuCallback)
 
 		#services
 		self.cmd_long = rospy.ServiceProxy('command_long', mavros_msgs.srv.CommandLong)
@@ -65,6 +67,7 @@ class Controller():
 		self.pos = Vector3()
 		self.vel = Vector3()
 		self.accel = Vector3()
+		self.orientation = Quaternion()
 
 		
 		self.cmd = PositionTarget()
@@ -102,6 +105,13 @@ class Controller():
 		self.accel.x = msg.accel.linear.x
 		self.accel.y = msg.accel.linear.y
 		self.accel.z = msg.accel.linear.z
+
+	def imuCallback(self, msg):
+		self.orientation.w = msg.orientation.w
+		self.orientation.x = msg.orientation.x
+		self.orientation.y = msg.orientation.y
+		self.orientation.z = msg.orientation.z
+		
 
 	def control(self):
 		#print(self.mode)
@@ -217,6 +227,14 @@ class Controller():
 		elif self.mode == Mode.USER:
 			self.cmd.type_mask = 0b0000111111000111
 			self.cmd_vel = pointcontroller(self.pos, self.cmd_pos, self.vel, self.accel)
+		elif self.mode == Mode.WAYPOINT:
+			#get heading
+
+			#get bearing from current position to intended position
+			#get current heading
+			#pid control to get required orientation to face that heading
+			#will probably need to do some kind of conversino between the units of orientation
+			pass
 	
 	def userinputCallback(self, msg):
 		self.cmd_pos.x = msg.x
