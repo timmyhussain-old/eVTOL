@@ -110,8 +110,8 @@ class ModeController():
             # self.mode = Mode.TRANSITION_FW
             # self.transition_start = rospy.get_rostime()
             # self.mode = Mode.USER
-            # self.mode = Mode.WAYPOINT
-            pass
+            self.mode = Mode.WAYPOINT
+            # pass
 
         elif self.mode == Mode.TRANSITION_FW:
             now = rospy.get_rostime()

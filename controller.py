@@ -24,7 +24,7 @@ def getQuaternion(angle, axis):
 	if axis == 'x':
 		arr = np.array([1, 1, 0, 0])
 	elif axis == 'y':
-		arr = np.array([1, 0, 1, 0])
+		arr = np.array([1, 0, -1, 0])
 	elif axis == 'z':
 		arr = np.array([1, 0, 0, 1])
 
@@ -280,7 +280,7 @@ class Controller():
 			waypoint_1 = Point()
 			waypoint_1.x = -30
 			waypoint_1.y = -10
-			waypoint_1.z = 50
+			waypoint_1.z = 30
 
 			waypoint_2 = Point()
 			waypoint_2.x = 20
@@ -316,14 +316,25 @@ class Controller():
 			else:
 				#get pitch control and get us to the right altitude roughly
 				z = np.array([waypoint_1.z - self.pos.z])
-				x = np.array([waypoint_1.x - self.pos.x])
-				pitch_to_point = np.arctan2(z, x) *180/np.pi
-				qtrn = getQuaternion(pitch_to_point, 'y')
-				quaternion = qtrn - self.orientation
+				y = np.array([waypoint_1.y - self.pos.y])
+				pitch_to_point = np.arctan2(z, y)[0] *180/np.pi
+				print(pitch_to_point)
+				if pitch_to_point > 45:
+					pitch_to_point = 45
+				elif pitch_to_point < -45:
+					pitch_to_point = -45
+				quaternion = getQuaternion(pitch_to_point, 'y')
+				# quaternion = Quaternion()
+				# quaternion.w = qtrn.w - self.orientation.w
+				# quaternion.x = qtrn.x - self.orientation.x
+				# quaternion.y = qtrn.y - self.orientation.y
+				# quaternion.z = qtrn.z - self.orientation.z
+				
 
 				att = AttitudeTarget()
 				att.type_mask = 0b000111
 				att.orientation = Quaternion()
+				att.thrust = 0.8
 				att.orientation.w = quaternion.w
 				att.orientation.x = quaternion.x
 				att.orientation.y = quaternion.y
