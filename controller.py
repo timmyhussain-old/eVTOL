@@ -204,7 +204,7 @@ class Controller():
 			# '''
 			att = AttitudeTarget()
 			att.type_mask = 0b000111
-			att.thrust = 0.450
+			att.thrust = 0.750
 			att.orientation = Quaternion()
 			att.orientation.w = 1.0
 			att.orientation.x = 0.0
@@ -290,58 +290,46 @@ class Controller():
 			#thrust command:
 			del_h = self.pos.z - waypoint_1.z
 			if abs(del_h) < 5:
+				#thrust gets us to the right altitude, quaternion directs us to the right x-y location
 				thr = -0.09*del_h + 1.35
+
+				y = np.array([waypoint_1.y - self.pos.y])
+				x = np.array([waypoint_1.x - self.pos.x])
+				angle_to_point = np.arctan2(y, x)[0] * 180/np.pi
+
+				#get current heading
+				angle_control_input = angle_to_point - self.heading.data
+
+				quaternion = getQuaternion(angle_control_input, 'x')
+
+				att = AttitudeTarget()
+				att.type_mask = 0b000111
+				att.thrust = thr
+				att.orientation = Quaternion()
+				att.orientation.w = quaternion.w
+				att.orientation.x = quaternion.x
+				att.orientation.y = quaternion.y
+				att.orientation.z = quaternion.z
+				self.cmd_att.publish(att)
+				# xte = xte() cross track error
 				# pass
 			else:
+				#get pitch control and get us to the right altitude roughly
 				z = np.array([waypoint_1.z - self.pos.z])
 				x = np.array([waypoint_1.x - self.pos.x])
-				pitch_to_point = np.arctan2(z, x) *190/np.pi
-				# pitch_control_input = pitch_to_point - self.
+				pitch_to_point = np.arctan2(z, x) *180/np.pi
+				qtrn = getQuaternion(pitch_to_point, 'y')
+				quaternion = qtrn - self.orientation
 
-			y = np.array([waypoint_1.y - self.pos.y])
-			x = np.array([waypoint_1.x - self.pos.x])
-			angle_to_point = np.arctan2(y, x)[0] * 180/np.pi
-
-			#get current heading
-			#heading saved in self.heading
-			angle_control_input = angle_to_point - self.heading.data
-
-			quaternion = getQuaternion(angle_control_input, 'x')
-
-			att = AttitudeTarget()
-			att.type_mask = 0b000111
-			att.thrust = 0.750
-			att.orientation = Quaternion()
-			att.orientation.w = quaternion.w
-			att.orientation.x = quaternion.x
-			att.orientation.y = quaternion.y
-			att.orientation.z = quaternion.z
-			self.cmd_att.publish(att)
-			# xte = xte()
-
-			y = np.array([waypoint_1.y, self.pos.y])
-			x = np.array([waypoint_1.x, self.pos.x])
-			angle_to_point = np.arctan2(y, x)[0] * 180/np.pi
-
-			#get current heading
-			#heading saved in self.heading
-			angle_control_input = angle_to_point - self.heading.data
-
-			quaternion = getQuaternion(angle_control_input, 'x')
-
-			att = AttitudeTarget()
-			att.type_mask = 0b000111
-			att.thrust = 0.750
-			att.orientation = Quaternion()
-			att.orientation.w = quaternion.w
-			att.orientation.x = quaternion.x
-			att.orientation.y = quaternion.y
-			att.orientation.z = quaternion.z
-			self.cmd_att.publish(att)
-
-			#pid control to get required orientation to face that heading
-			#will probably need to do some kind of conversion between the units of orientation
-			pass
+				att = AttitudeTarget()
+				att.type_mask = 0b000111
+				att.orientation = Quaternion()
+				att.orientation.w = quaternion.w
+				att.orientation.x = quaternion.x
+				att.orientation.y = quaternion.y
+				att.orientation.z = quaternion.z
+				self.cmd_att.publish(att)
+				#pass
 	
 	def userinputCallback(self, msg):
 		self.cmd_pos.x = msg.x
