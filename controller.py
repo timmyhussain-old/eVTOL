@@ -20,7 +20,7 @@ def xte(p1, p2, p3):
 	p3 = np.array([p3.x, p3.y])
 
 	xte = np.cross(p2-p1,p3-p1)/norm(p2-p1)
-	return xte
+	return xte 
 
 def getQuaternion(angle, axis):
 	if axis == 'x':
@@ -180,28 +180,8 @@ class Controller():
 
 			#velocity control
 			'''
-			self.cmd.type_mask = 0b0000111111000111
+			self.cmd.type_mask = 0b0000111111000111 
 			self.cmd_vel = pointcontroller(self.pos, self.cmd_pos, self.vel, self.accel)
-			'''
-
-			#working on thrust
-			'''
-			desired_pos = Vector3()
-			desired_pos.x = desired_pos.y = 0
-			desired_pos.z = 10
-
-			vel = Vector3()
-			vel = pointcontroller(self.pos, desired_pos, self.vel, self.accel)
-			cmd = PositionTarget()
-			cmd.coordinate_frame = PositionTarget.FRAME_LOCAL_NED
-			cmd.type_mask = 0b0000100111000011
-
-			cmd.velocity = vel
-			cmd.position = Point()
-			cmd.position.x = desired_pos.x
-			cmd.position.y = desired_pos.y
-			cmd.position.z = desired_pos.z
-			self.cmd_pub.publish(cmd)
 			'''
 
 			#attitude control: thrust command and no rotation quaternion
@@ -216,29 +196,28 @@ class Controller():
 			att.orientation.z = 0.0
 			self.cmd_att.publish(att)
 			'''
-			
-
-			# rospy.wait_for_service('mavros_msgs/CommandLong')
-			
-			'''
-
-				params =	{'bool' = False,
-						'command' = 3000,
-						'param1' = MavVtolState.MAV_VTOL_STATE_MC,
-						'param2' = 0,
-						'param3' = 0,
-						'param4' = 0,
-						'param5' = 0, 
-						'param6' = 0,
-						'param7' = 0}
-						'''
-			try:
-				self.cmd_long(command = 3000, confirmation = 1, param1 = MavVtolState.MAV_VTOL_STATE_FW.value, param2 = 0, param3 = 0, param4 = 0, param5 = 0, param6 = 0, param7 = 0)
-				# self.cmd_long()
-			except rospy.ServiceException as exc:
-				print("Service did not process request: "+str(exc))
 
 		elif self.mode == Mode.TRANSITION_FW:
+			rospy.wait_for_service('mavros_msgs/CommandLong')
+			
+			
+
+			params =	{'command' = 3000,
+					'param1' = MavVtolState.MAV_VTOL_STATE_FW.value,
+					'param2' = 0,
+					'param3' = 0,
+					'param4' = 0,
+					'param5' = 0, 
+					'param6' = 0,
+					'param7' = 0}
+						
+			try:
+				self.cmd_long(command = 3000, confirmation = 1, param1 = MavVtolState.MAV_VTOL_STATE_FW.value, param2 = 0, param3 = 0, param4 = 0, param5 = 0, param6 = 0, param7 = 0)
+				# self.cmd_long(**params)
+			except rospy.ServiceException as exc:
+				print("Service did not process request: "+str(exc))			
+
+
 			#attempt at pure thrust command: didn't work
 			'''
 			thrust_msg = Thrust()
