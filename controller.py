@@ -3,7 +3,9 @@
 import rospy
 import numpy as np
 import numpy.linalg as npl
-#from mavros_msgs.srv import CommandLong
+from mavros_msgs.srv import CommandLong
+import mavros
+from mavros import command
 import mavros_msgs.srv
 from modeController import Mode, TypeMasks, MavVtolState
 	
@@ -88,7 +90,9 @@ class Controller():
 		rospy.Subscriber('/mavros/global_position/compass_hdg', Float64, self.headingCallback)
 
 		#services
-		self.cmd_long = rospy.ServiceProxy('command_long', mavros_msgs.srv.CommandLong)
+		mavros.set_namespace()
+		self.cmd_long = command._get_proxy('command', CommandLong)
+		# self.cmd_long = rospy.ServiceProxy('command_long', mavros_msgs.srv.CommandLong)
 
 
 		self.mode = None
@@ -201,7 +205,7 @@ class Controller():
 			'''
 
 			#attitude control: thrust command and no rotation quaternion
-			# '''
+			'''
 			att = AttitudeTarget()
 			att.type_mask = 0b000111
 			att.thrust = 0.750
@@ -211,14 +215,29 @@ class Controller():
 			att.orientation.y = 0.0 
 			att.orientation.z = 0.0
 			self.cmd_att.publish(att)
-			# '''
-
-			y = np.array([10, self.pos.y])
-			x = np.array([10, self.pos.x])
-			angle_to_point = np.arctan2(y, x)[0] * 180/np.pi
-
-			# print(angle_to_point)
+			'''
 			
+
+			# rospy.wait_for_service('mavros_msgs/CommandLong')
+			
+			'''
+
+				params =	{'bool' = False,
+						'command' = 3000,
+						'param1' = MavVtolState.MAV_VTOL_STATE_MC,
+						'param2' = 0,
+						'param3' = 0,
+						'param4' = 0,
+						'param5' = 0, 
+						'param6' = 0,
+						'param7' = 0}
+						'''
+			try:
+				self.cmd_long(command = 3000, confirmation = 1, param1 = MavVtolState.MAV_VTOL_STATE_FW.value, param2 = 0, param3 = 0, param4 = 0, param5 = 0, param6 = 0, param7 = 0)
+				# self.cmd_long()
+			except rospy.ServiceException as exc:
+				print("Service did not process request: "+str(exc))
+
 		elif self.mode == Mode.TRANSITION_FW:
 			#attempt at pure thrust command: didn't work
 			'''
