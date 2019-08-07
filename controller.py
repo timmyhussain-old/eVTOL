@@ -198,22 +198,22 @@ class Controller():
 			'''
 
 		elif self.mode == Mode.TRANSITION_FW:
-			rospy.wait_for_service('mavros_msgs/CommandLong')
+			# rospy.wait_for_service('mavros_msgs/CommandLong')
 			
 			
 
-			params =	{'command' = 3000,
-					'param1' = MavVtolState.MAV_VTOL_STATE_FW.value,
-					'param2' = 0,
-					'param3' = 0,
-					'param4' = 0,
-					'param5' = 0, 
-					'param6' = 0,
-					'param7' = 0}
-						
+			params =	{"command": 3000,
+						"param1": MavVtolState.MAV_VTOL_STATE_FW.value,
+						"param2": 0,
+						"param3": 0,
+						"param4": 0,
+						"param5": 0, 
+						"param6": 0,
+						"param7": 0}
+							
 			try:
-				self.cmd_long(command = 3000, confirmation = 1, param1 = MavVtolState.MAV_VTOL_STATE_FW.value, param2 = 0, param3 = 0, param4 = 0, param5 = 0, param6 = 0, param7 = 0)
-				# self.cmd_long(**params)
+				# self.cmd_long(command = 3000, confirmation = 1, param1 = MavVtolState.MAV_VTOL_STATE_FW.value, param2 = 0, param3 = 0, param4 = 0, param5 = 0, param6 = 0, param7 = 0)
+				self.cmd_long(**params)
 			except rospy.ServiceException as exc:
 				print("Service did not process request: "+str(exc))			
 
@@ -227,7 +227,7 @@ class Controller():
 			'''
 
 			#attitude control: thrust command and no rotation quaternion
-			# '''
+			'''
 			att = AttitudeTarget()
 			att.type_mask = 0b000111
 			att.thrust = 0.50
@@ -237,27 +237,6 @@ class Controller():
 			self.cmd_att.publish(att)
 			# '''
 			
-			#rospy.wait_for_service('mavros_msgs/CommandLong')
-			
-			'''
-
-				params =	{'bool' = False,
-						'command' = 3000,
-						'param1' = MavVtolState.MAV_VTOL_STATE_MC,
-						'param2' = 0,
-						'param3' = 0,
-						'param4' = 0,
-						'param5' = 0, 
-						'param6' = 0,
-						'param7' = 0}
-						'''
-			try:
-				# self.cmd_long(command = 3000, param1 = MavVtolState.MAV_VTOL_STATE_FW, param2 = 0, param3 = 0, param4 = 0, param5 = 0, param6 = 0, param7 = 0)
-				self.cmd_long()
-			except rospy.ServiceException as exc:
-				print("Service did not process request: "+str(exc))
-
-			#self.mode = Mode.USER
    			# pass
 
 		elif self.mode == Mode.HOLD:
@@ -285,6 +264,12 @@ class Controller():
 			waypoint_2.y = 20
 			waypoint_2.z = 10
 
+
+			self.cmd.type_mask = TypeMasks.MASK_POSITION.value
+			self.cmd.position = waypoint_1
+			self.cmd_pub.publish(self.cmd)
+			
+			'''
 			#thrust command:
 			del_h = self.pos.z - waypoint_1.z
 			if abs(del_h) < 5:
@@ -339,7 +324,14 @@ class Controller():
 				att.orientation.z = quaternion.z
 				self.cmd_att.publish(att)
 				#pass
-	
+			'''
+
+			#read in waypoint
+			#navigate to that position using either position controller or mav_cmd_nav_waypoint
+			#once at the waypoint or within some distance, if waypoint.loiter is True: switch to loiter mode
+			#could publish how long I've been at the waypoint and once navigator sees I've been there long enough, makes decision to continue or not
+			#otherwise 
+
 	def userinputCallback(self, msg):
 		self.cmd_pos.x = msg.x
 		self.cmd_pos.y = msg.y

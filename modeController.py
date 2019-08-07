@@ -107,16 +107,16 @@ class ModeController():
                 self.mode = Mode.TAKEOFF
         
         elif self.mode == Mode.TAKEOFF and self.hasTakenOff():
-            # self.mode = Mode.TRANSITION_FW
-            # self.transition_start = rospy.get_rostime()
+            self.mode = Mode.TRANSITION_FW
+            self.transition_start = rospy.get_rostime()
             # self.mode = Mode.USER
-            self.mode = Mode.WAYPOINT
+            # self.mode = Mode.WAYPOINT
             # pass
 
         elif self.mode == Mode.TRANSITION_FW:
             now = rospy.get_rostime()
             if now.secs - self.transition_start.secs > 10:
-                self.mode = Mode.USER
+                self.mode = Mode.WAYPOINT
         
         #elif self.mode = Mode.HOLD:
     def publish(self):
