@@ -3,7 +3,7 @@
 import rospy
 import numpy as np
 import numpy.linalg as npl
-from mavros_msgs.srv import CommandLong
+from mavros_msgs.srv import CommandLong, CommandInt
 import mavros
 from mavros import command
 import mavros_msgs.srv
@@ -13,6 +13,7 @@ from std_msgs.msg import Int8, Float64
 from geometry_msgs.msg import PoseStamped, Point, Vector3, TwistStamped, AccelWithCovarianceStamped, Quaternion
 from mavros_msgs.msg import PositionTarget, State, Thrust, AttitudeTarget
 from sensor_msgs.msg import Imu
+from basic_controller.msg import Waypoint
 
 def xte(p1, p2, p3):
 	p1 = np.array([p1.x, p1.y])
@@ -85,13 +86,14 @@ class Controller():
 		rospy.Subscriber('/mavros/local_position/accel', AccelWithCovarianceStamped, self.accelCallback)
 		rospy.Subscriber('/mavros/local_position/pose', PoseStamped, self.poseCallback)
 		rospy.Subscriber('/userInput/position', Vector3, self.userinputCallback)
-		# rospy.Subscriber('/navigation/waypoint')
+		rospy.Subscriber('/navigator/waypoint', Waypoint, self.waypointCallback)
 		rospy.Subscriber('/mavros/imu/data', Imu, self.imuCallback)
 		rospy.Subscriber('/mavros/global_position/compass_hdg', Float64, self.headingCallback)
 
 		#services
 		mavros.set_namespace()
 		self.cmd_long = command._get_proxy('command', CommandLong)
+		self.cmd_int = command._get_proxy('command_int', CommandInt)
 		# self.cmd_long = rospy.ServiceProxy('command_long', mavros_msgs.srv.CommandLong)
 
 
@@ -108,7 +110,8 @@ class Controller():
 		
 		self.cmd = PositionTarget()
 		self.cmd.coordinate_frame = PositionTarget.FRAME_LOCAL_NED
-		self.cmd.type_mask = 0b0000111111000111		#mask velocity
+		# self.cmd.type_mask = 0b0000111111000111		#mask velocity
+		self.current_wp = Waypoint()
 
 		'''
 		self.cmd_vel = Vector3()
@@ -155,13 +158,17 @@ class Controller():
 		
 		# rospy.loginfo("current heading: %s\n", msg.data)
 
+	def waypointCallback(self, msg):
+		self.current_wp.position = msg.position
+		self.current_wp.loiter = msg.loiter
+
 	def control(self):
 		#print(self.mode)
 		if self.mode == Mode.TAKEOFF:
 			
 			
 			#self.cmd.type_mask = 0b0001110111111100	#takeoff type mask
-			self.cmd.type_mask = TypeMasks.MASK_TAKEOFF_POSITION.value #works as position control takeoff
+			# self.cmd.type_mask = TypeMasks.MASK_TAKEOFF_POSITION.value #works as position control takeoff
 			
 			#position control
 			self.cmd.type_mask = TypeMasks.MASK_POSITION.value
@@ -239,98 +246,129 @@ class Controller():
 			
    			# pass
 
-		elif self.mode == Mode.HOLD:
-			#self.cmd.type_mask = 0b0100111111111100
-			#self.cmd_pos.x = 20
-			#self.cmd_pos.z = 5
-			self.cmd.type_mask = TypeMasks.MASK_POSITION.value
-
 		elif self.mode == Mode.USER:
 			self.cmd.type_mask = 0b0000111111000111
 			self.cmd_vel = pointcontroller(self.pos, self.cmd_pos, self.vel, self.accel)
 
+		#quadcopter mode waypoint
+		elif self.mode == Mode.WAYPOINT:
+			self.cmd.header.stamp = rospy.get_rostime()
+			self.cmd.type_mask = TypeMasks.MASK_POSITION.value
+			self.cmd.position = self.current_wp.position
+			self.cmd_pub.publish(self.cmd) 
+
+		elif self.mode == Mode.LOITER:
+			self.cmd.header.stamp = rospy.get_rostime()
+			self.cmd.type_mask = TypeMasks.MASK_POSITION.value
+			self.cmd.position = self.current_wp.position
+			self.cmd_pub.publish(self.cmd) 
+
+		#working on VTOL waypoint
+		'''
 		elif self.mode == Mode.WAYPOINT:
 			#get heading
 			# orientation saved in self.orientation
 
 			#get bearing from current position to intended position
-			waypoint_1 = Point()
-			waypoint_1.x = -30
-			waypoint_1.y = -10
-			waypoint_1.z = 30
+			# waypoint_1 = Point()
+			# waypoint_1.x = -30
+			# waypoint_1.y = -10
+			# waypoint_1.z = 30
 
-			waypoint_2 = Point()
-			waypoint_2.x = 20
-			waypoint_2.y = 20
-			waypoint_2.z = 10
+			# waypoint_2 = Point()
+			# waypoint_2.x = 20
+			# waypoint_2.y = 20
+			# waypoint_2.z = 10
 
 
-			self.cmd.type_mask = TypeMasks.MASK_POSITION.value
-			self.cmd.position = waypoint_1
-			self.cmd_pub.publish(self.cmd)
+			# self.cmd.type_mask = TypeMasks.MASK_LOITER_POSITION.value
+			# self.cmd.position = self.current_wp.position
+			# self.cmd_pub.publish(self.cmd)
 			
-			'''
-			#thrust command:
-			del_h = self.pos.z - waypoint_1.z
-			if abs(del_h) < 5:
-				#thrust gets us to the right altitude, quaternion directs us to the right x-y location
-				thr = -0.09*del_h + 1.35
+			
+			# #thrust command:
+			# del_h = self.pos.z - waypoint_1.z
+			# if abs(del_h) < 5:
+			# 	#thrust gets us to the right altitude, quaternion directs us to the right x-y location
+			# 	thr = -0.09*del_h + 1.35
 
-				y = np.array([waypoint_1.y - self.pos.y])
-				x = np.array([waypoint_1.x - self.pos.x])
-				angle_to_point = np.arctan2(y, x)[0] * 180/np.pi
+			# 	y = np.array([waypoint_1.y - self.pos.y])
+			# 	x = np.array([waypoint_1.x - self.pos.x])
+			# 	angle_to_point = np.arctan2(y, x)[0] * 180/np.pi
 
-				#get current heading
-				angle_control_input = angle_to_point - self.heading.data
+			# 	#get current heading
+			# 	angle_control_input = angle_to_point - self.heading.data
 
-				quaternion = getQuaternion(angle_control_input, 'x')
+			# 	quaternion = getQuaternion(angle_control_input, 'x')
 
-				att = AttitudeTarget()
-				att.type_mask = 0b000111
-				att.thrust = thr
-				att.orientation = Quaternion()
-				att.orientation.w = quaternion.w
-				att.orientation.x = quaternion.x
-				att.orientation.y = quaternion.y
-				att.orientation.z = quaternion.z
-				self.cmd_att.publish(att)
-				# xte = xte() cross track error
-				# pass
-			else:
-				#get pitch control and get us to the right altitude roughly
-				z = np.array([waypoint_1.z - self.pos.z])
-				y = np.array([waypoint_1.y - self.pos.y])
-				pitch_to_point = np.arctan2(z, y)[0] *180/np.pi
-				print(pitch_to_point)
-				if pitch_to_point > 45:
-					pitch_to_point = 45
-				elif pitch_to_point < -45:
-					pitch_to_point = -45
-				quaternion = getQuaternion(pitch_to_point, 'y')
-				# quaternion = Quaternion()
-				# quaternion.w = qtrn.w - self.orientation.w
-				# quaternion.x = qtrn.x - self.orientation.x
-				# quaternion.y = qtrn.y - self.orientation.y
-				# quaternion.z = qtrn.z - self.orientation.z
+			# 	att = AttitudeTarget()
+			# 	att.type_mask = 0b000111
+			# 	att.thrust = thr
+			# 	att.orientation = Quaternion()
+			# 	att.orientation.w = quaternion.w
+			# 	att.orientation.x = quaternion.x
+			# 	att.orientation.y = quaternion.y
+			# 	att.orientation.z = quaternion.z
+			# 	self.cmd_att.publish(att)
+			# 	# xte = xte() cross track error
+			# 	# pass
+			# else:
+			# 	#get pitch control and get us to the right altitude roughly
+			# 	z = np.array([waypoint_1.z - self.pos.z])
+			# 	y = np.array([waypoint_1.y - self.pos.y])
+			# 	pitch_to_point = np.arctan2(z, y)[0] *180/np.pi
+			# 	print(pitch_to_point)
+			# 	if pitch_to_point > 45:
+			# 		pitch_to_point = 45
+			# 	elif pitch_to_point < -45:
+			# 		pitch_to_point = -45
+			# 	quaternion = getQuaternion(pitch_to_point, 'y')
+			# 	# quaternion = Quaternion()
+			# 	# quaternion.w = qtrn.w - self.orientation.w
+			# 	# quaternion.x = qtrn.x - self.orientation.x
+			# 	# quaternion.y = qtrn.y - self.orientation.y
+			# 	# quaternion.z = qtrn.z - self.orientation.z
 				
 
-				att = AttitudeTarget()
-				att.type_mask = 0b000111
-				att.orientation = Quaternion()
-				att.thrust = 0.8
-				att.orientation.w = quaternion.w
-				att.orientation.x = quaternion.x
-				att.orientation.y = quaternion.y
-				att.orientation.z = quaternion.z
-				self.cmd_att.publish(att)
-				#pass
-			'''
+			# 	att = AttitudeTarget()
+			# 	att.type_mask = 0b000111
+			# 	att.orientation = Quaternion()
+			# 	att.thrust = 0.8
+			# 	att.orientation.w = quaternion.w
+			# 	att.orientation.x = quaternion.x
+			# 	att.orientation.y = quaternion.y
+			# 	att.orientation.z = quaternion.z
+			# 	self.cmd_att.publish(att)
+			# 	#pass
+			
 
-			#read in waypoint
+			#read in waypoint --> happening in self.waypointCallback
+
 			#navigate to that position using either position controller or mav_cmd_nav_waypoint
+			
+			params =	{"frame": 1,
+						"command": 16,
+						"param1": 0,
+						"param2": 10,
+						"param3": 10,
+						"param4": 0,
+						"x": self.current_wp.position.x, 
+						"y": self.current_wp.position.y,
+						"z": self.current_wp.position.z}
+							
+			try:
+				# self.cmd_long(command = 3000, confirmation = 1, param1 = MavVtolState.MAV_VTOL_STATE_FW.value, param2 = 0, param3 = 0, param4 = 0, param5 = 0, param6 = 0, param7 = 0)
+				self.cmd_int(**params)
+			except rospy.ServiceException as exc:
+				print("Service did not process request: "+str(exc))	
+			
 			#once at the waypoint or within some distance, if waypoint.loiter is True: switch to loiter mode
 			#could publish how long I've been at the waypoint and once navigator sees I've been there long enough, makes decision to continue or not
 			#otherwise 
+		'''
+
+
+
 
 	def userinputCallback(self, msg):
 		self.cmd_pos.x = msg.x
@@ -338,18 +376,18 @@ class Controller():
 		self.cmd_pos.z = msg.z
 
 	def publish(self):
-		'''
+		
 		self.cmd.header.stamp = rospy.get_rostime()
-		self.cmd.velocity = self.cmd_vel
-		self.cmd.position = self.cmd_pos
+		# self.cmd.velocity = self.cmd_vel
+		# self.cmd.position = self.cmd_pos
 		self.cmd_pub.publish(self.cmd)
-		'''
+		
 
 	def run(self):
 		rate = rospy.Rate(10)
 		while not rospy.is_shutdown():
 			self.control()
-			#self.publish()
+			# self.publish()
 			rate.sleep()
 
 if __name__ == '__main__':

@@ -7,23 +7,35 @@ This is a temporary script file.
 """
 
 import rospy 
+import numpy as np
+import numpy.linalg as npl
 from enum import Enum
 from std_msgs.msg import Int8, Bool, Float32
-from geometry_msgs.msg import Pose, PoseStamped, Vector3
+from geometry_msgs.msg import Point, Pose, PoseStamped, Vector3
 from sensor_msgs.msg import BatteryState
 from mavros_msgs.msg import State
+from basic_controller.msg import Waypoint
 
 TAKEOFF_ALT_THRESHOLD = 9          # Altitude at which we have finished take-off
 RETURN_BATTERY_THRESHOLD = 0.40     # battery threshold for returning home
 HOME_POS_THRESH = 5.0               # Position error Threshold for determining once we're home
 IDLE_TIME = 5.0                     # sit in idle for this long before taking off
 MAX_BATTERY_CHARGE = 4400.          # Maximum battery charge in Mah
+DISTANCE_THRESHOLD = 1
+
+def distance(p1, p2):
+    p1 = np.array([p1.x, p1.y, p1.z])
+    p2 = np.array([p2.x, p2.y, p2.z])
+
+    distance = npl.norm(p1 - p2)
+    return abs(distance)
+
 
 class Mode(Enum):
     IDLE = 1
     TAKEOFF = 2
     TRANSITION_FW = 3
-    HOLD = 4
+    LOITER = 4
     WAYPOINT = 5
     LAND = 6
     USER = 7
@@ -58,8 +70,10 @@ class ModeController():
         self.mission_start_time = None
         
         self.pos = Vector3()
+        self.current_wp = Waypoint()
         
         self.transition_start = None
+        self.loiter_start = None
 
         # publishers
         self.mode_publisher = rospy.Publisher('/modeController/mode', Int8, queue_size=10)
@@ -69,6 +83,7 @@ class ModeController():
         rospy.Subscriber('/mavros/state', State, self.stateCallback)
         rospy.Subscriber('/mavros/local_position/pose', PoseStamped, self.poseCallback)       
         rospy.Subscriber('/mavros/battery',BatteryState,self.batteryCallback)
+        rospy.Subscriber('/navigator/waypoint', Waypoint, self.waypointCallback)
         
     def hasInitialized(self):
         check1 = self.battery_status != None
@@ -98,6 +113,10 @@ class ModeController():
     def batteryCallback(self, msg):
         self.battery_status = msg
         self.battery_level = msg.percentage
+
+    def waypointCallback(self, msg):
+        self.current_wp.position = msg.position
+        self.current_wp.loiter = msg.loiter
         
     def determineMode(self):
        # if self.
@@ -107,18 +126,30 @@ class ModeController():
                 self.mode = Mode.TAKEOFF
         
         elif self.mode == Mode.TAKEOFF and self.hasTakenOff():
-            self.mode = Mode.TRANSITION_FW
-            self.transition_start = rospy.get_rostime()
+            # self.mode = Mode.TRANSITION_FW
+            # self.transition_start = rospy.get_rostime()
             # self.mode = Mode.USER
-            # self.mode = Mode.WAYPOINT
+            self.mode = Mode.WAYPOINT
             # pass
 
         elif self.mode == Mode.TRANSITION_FW:
             now = rospy.get_rostime()
-            if now.secs - self.transition_start.secs > 10:
+            if now.secs - self.transition_start.secs > 3:
                 self.mode = Mode.WAYPOINT
         
-        #elif self.mode = Mode.HOLD:
+        elif self.mode == Mode.WAYPOINT:
+            if distance(self.pos, self.current_wp.position) < DISTANCE_THRESHOLD and self.current_wp.loiter.data == True:
+                self.loiter_start = rospy.get_rostime()
+                self.mode = Mode.LOITER
+
+        elif self.mode == Mode.LOITER:
+            now = rospy.get_rostime()
+            # print(now.secs - self.loiter_start.secs)
+            if now.secs - self.loiter_start.secs > 5:
+                # print('yes')
+                self.mode == Mode.WAYPOINT
+
+
     def publish(self):
         msg = Int8()
         msg.data = self.mode.value

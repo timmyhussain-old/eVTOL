@@ -4,14 +4,14 @@ import rospy
 import string 
 import numpy as np
 import numpy.linalg as npl
-from modeController import Mode
+from modeController import Mode, distance, DISTANCE_THRESHOLD
 
 from std_msgs.msg import Int8, Float64
 from geometry_msgs.msg import PoseStamped, Point
 from basic_controller.msg import Waypoint
 
 WAYPOINT_ALTITUDE = 50
-DISTANCE_THRESHOLD = 5
+
 
 def createPoint(array):
 	point = Point()
@@ -19,13 +19,6 @@ def createPoint(array):
 	point.y = array[1]
 	point.z = WAYPOINT_ALTITUDE
 	return point
-
-def distance(p1, p2):
-	p1 = np.array([p1.x, p1.y, p1.z])
-	p2 = np.array([p2.x, p2.y, p2.z])
-
-	distance = npl.norm(p1 - p2)
-	return abs(distance)
 
 class Navigator():
 	def __init__(self):
@@ -58,13 +51,14 @@ class Navigator():
 	def navigate(self):
 		try:
 			self.current_wp.position = createPoint(self.waypoints[self.current_wp_ix][0])
-			self.current_wp.loiter = self.waypoints[self.current_wp_ix][1]
+			self.current_wp.loiter.data = self.waypoints[self.current_wp_ix][1]
 		except IndexError:
 			self.current_wp.position = createPoint([0, 0])
-			self.current_wp.loiter = True
+			self.current_wp.loiter.data = True
 
 		#if we're supposed to be loitering and we are loitering, get ready to go to next waypoint
-		if distance(self.pos, self.current_wp.position) < DISTANCE_THRESHOLD and self.mode == Mode.LOITER:
+		if (distance(self.pos, self.current_wp.position) < DISTANCE_THRESHOLD) and (self.mode == Mode.LOITER):
+			print("current index: %s\n", self.current_wp_ix)
 			self.current_wp_ix += 1
 
 		#if we're not supposed to be loitering but we are at the waypoint, get ready to go to next waypoint
@@ -73,6 +67,7 @@ class Navigator():
 
 	def publish(self):
 		if self.mode == Mode.WAYPOINT:
+			# print("publishing waypoint")
 			self.wp_pub.publish(self.current_wp)
 
 
