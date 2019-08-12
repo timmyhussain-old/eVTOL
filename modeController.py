@@ -21,7 +21,8 @@ RETURN_BATTERY_THRESHOLD = 0.40     # battery threshold for returning home
 HOME_POS_THRESH = 5.0               # Position error Threshold for determining once we're home
 IDLE_TIME = 5.0                     # sit in idle for this long before taking off
 MAX_BATTERY_CHARGE = 4400.          # Maximum battery charge in Mah
-DISTANCE_THRESHOLD = 1
+DISTANCE_THRESHOLD = 0.5
+WAYPOINT_ALTITUDE = 50
 
 def distance(p1, p2):
     p1 = np.array([p1.x, p1.y, p1.z])
@@ -71,6 +72,10 @@ class ModeController():
         
         self.pos = Vector3()
         self.current_wp = Waypoint()
+        self.home = Point()
+        self.home.x = 0
+        self.home.y = 0
+        self.home.z = WAYPOINT_ALTITUDE
         
         self.transition_start = None
         self.loiter_start = None
@@ -129,7 +134,7 @@ class ModeController():
             # self.mode = Mode.TRANSITION_FW
             # self.transition_start = rospy.get_rostime()
             # self.mode = Mode.USER
-            self.mode = Mode.WAYPOINT
+            self.mode = Mode.LAND
             # pass
 
         elif self.mode == Mode.TRANSITION_FW:
@@ -138,16 +143,22 @@ class ModeController():
                 self.mode = Mode.WAYPOINT
         
         elif self.mode == Mode.WAYPOINT:
+            # print("inside WAYPOINT")
             if distance(self.pos, self.current_wp.position) < DISTANCE_THRESHOLD and self.current_wp.loiter.data == True:
                 self.loiter_start = rospy.get_rostime()
                 self.mode = Mode.LOITER
 
         elif self.mode == Mode.LOITER:
             now = rospy.get_rostime()
-            # print(now.secs - self.loiter_start.secs)
-            if now.secs - self.loiter_start.secs > 5:
+            # print(now.secs - self.loiter_start.secs > 5)
+            if self.current_wp.position == self.home:
+                if now.secs - self.loiter_start.secs > 10:
+                    self.mode = Mode.LAND
+
+            elif now.secs - self.loiter_start.secs > 10:
                 # print('yes')
-                self.mode == Mode.WAYPOINT
+                self.mode = Mode.WAYPOINT
+                # print(self.mode)
 
 
     def publish(self):

@@ -3,7 +3,7 @@
 import rospy
 import numpy as np
 import numpy.linalg as npl
-from mavros_msgs.srv import CommandLong, CommandInt
+from mavros_msgs.srv import CommandLong, CommandInt, CommandTOL
 import mavros
 from mavros import command
 import mavros_msgs.srv
@@ -94,8 +94,13 @@ class Controller():
 		mavros.set_namespace()
 		self.cmd_long = command._get_proxy('command', CommandLong)
 		self.cmd_int = command._get_proxy('command_int', CommandInt)
+		self.cmd_land = command._get_proxy('land', CommandTOL)
 		# self.cmd_long = rospy.ServiceProxy('command_long', mavros_msgs.srv.CommandLong)
 
+		self.home = Point()
+		self.home.x = 0
+		self.home.y = 0
+		self.home.z = 0
 
 		self.mode = None
 		self.takeoff = None
@@ -224,24 +229,15 @@ class Controller():
 			except rospy.ServiceException as exc:
 				print("Service did not process request: "+str(exc))			
 
-
-			#attempt at pure thrust command: didn't work
-			'''
-			thrust_msg = Thrust()
-			thrust_msg.header.stamp = rospy.get_rostime()
-			thrust_msg.thrust = 1
-			self.cmd_thrust.publish(thrust_msg)
-			'''
-
 			#attitude control: thrust command and no rotation quaternion
-			'''
-			att = AttitudeTarget()
-			att.type_mask = 0b000111
-			att.thrust = 0.50
-			att.orientation = Quaternion()
-			att.orientation.w = 1.0
-			att.orientation.x = att.orientation.y = att.orientation.z = 0.0
-			self.cmd_att.publish(att)
+			# '''
+			# att = AttitudeTarget()
+			# att.type_mask = 0b000111
+			# att.thrust = 0.50
+			# att.orientation = Quaternion()
+			# att.orientation.w = 1.0
+			# att.orientation.x = att.orientation.y = att.orientation.z = 0.0
+			# self.cmd_att.publish(att)
 			# '''
 			
    			# pass
@@ -262,6 +258,25 @@ class Controller():
 			self.cmd.type_mask = TypeMasks.MASK_POSITION.value
 			self.cmd.position = self.current_wp.position
 			self.cmd_pub.publish(self.cmd) 
+
+		elif self.mode == Mode.LAND:
+			# self.cmd.header.stamp = rospy.get_rostime()
+			# self.cmd.type_mask = TypeMasks.MASK_LAND.value
+			# # self.cmd.position = self.current_wp.position
+			# self.cmd_pub.publish(self.cmd) 
+
+			params =	{"min_pitch": 0,
+						"yaw": 0,
+						"latitude": self.home.x,
+						"longitude": self.home.y,
+						"altitude": 0}
+							
+			try:
+				# self.cmd_long(command = 3000, confirmation = 1, param1 = MavVtolState.MAV_VTOL_STATE_FW.value, param2 = 0, param3 = 0, param4 = 0, param5 = 0, param6 = 0, param7 = 0)
+				self.cmd_land(**params)
+			except rospy.ServiceException as exc:
+				print("Service did not process request: "+str(exc))	
+
 
 		#working on VTOL waypoint
 		'''
