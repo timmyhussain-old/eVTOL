@@ -133,8 +133,8 @@ class ModeController():
         elif self.mode == Mode.TAKEOFF and self.hasTakenOff():
             # self.mode = Mode.TRANSITION_FW
             # self.transition_start = rospy.get_rostime()
-            # self.mode = Mode.USER
-            self.mode = Mode.LAND
+            self.mode = Mode.WAYPOINT
+            # self.mode = Mode.LAND
             # pass
 
         elif self.mode == Mode.TRANSITION_FW:
@@ -153,7 +153,9 @@ class ModeController():
             # print(now.secs - self.loiter_start.secs > 5)
             if self.current_wp.position == self.home:
                 if now.secs - self.loiter_start.secs > 10:
+                    # print(self.drone_mode)
                     self.mode = Mode.LAND
+                    # print(self.drone_mode)
 
             elif now.secs - self.loiter_start.secs > 10:
                 # print('yes')
