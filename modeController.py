@@ -22,7 +22,7 @@ HOME_POS_THRESH = 5.0               # Position error Threshold for determining o
 IDLE_TIME = 5.0                     # sit in idle for this long before taking off
 MAX_BATTERY_CHARGE = 4400.          # Maximum battery charge in Mah
 DISTANCE_THRESHOLD = 0.5
-WAYPOINT_ALTITUDE = 50
+WAYPOINT_ALTITUDE = 30
 
 def distance(p1, p2):
     p1 = np.array([p1.x, p1.y, p1.z])
@@ -39,7 +39,8 @@ class Mode(Enum):
     LOITER = 4
     WAYPOINT = 5
     LAND = 6
-    USER = 7
+    TRANSITION_MC = 7
+    USER = 8
 
 class TypeMasks(Enum): 
     MASK_POSITION =         0b0000111111111000
@@ -139,29 +140,36 @@ class ModeController():
 
         elif self.mode == Mode.TRANSITION_FW:
             now = rospy.get_rostime()
-            if now.secs - self.transition_start.secs > 3:
-                self.mode = Mode.WAYPOINT
+            if now.secs - self.transition_start.secs > 2:
+                self.mode = Mode.LOITER
+                self.loiter_start = rospy.get_rostime()
         
         elif self.mode == Mode.WAYPOINT:
             # print("inside WAYPOINT")
             if distance(self.pos, self.current_wp.position) < DISTANCE_THRESHOLD and self.current_wp.loiter.data == True:
-                self.loiter_start = rospy.get_rostime()
-                self.mode = Mode.LOITER
+                self.transition_start = rospy.get_rostime()
+                # self.mode = Mode.LOITER
+                self.mode = Mode.TRANSITION_FW
 
         elif self.mode == Mode.LOITER:
             now = rospy.get_rostime()
             # print(now.secs - self.loiter_start.secs > 5)
             if self.current_wp.position == self.home:
-                if now.secs - self.loiter_start.secs > 10:
+                if now.secs - self.loiter_start.secs > 15:
                     # print(self.drone_mode)
                     self.mode = Mode.LAND
                     # print(self.drone_mode)
 
-            elif now.secs - self.loiter_start.secs > 10:
+            elif now.secs - self.loiter_start.secs > 15:
                 # print('yes')
-                self.mode = Mode.WAYPOINT
+                self.transition_start = rospy.get_rostime()
+                self.mode = Mode.TRANSITION_MC
                 # print(self.mode)
 
+        elif self.mode == Mode.TRANSITION_MC:
+            now = rospy.get_rostime()
+            if now.secs - self.transition_start.secs > 2:
+                self.mode = Mode.WAYPOINT
 
     def publish(self):
         msg = Int8()

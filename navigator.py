@@ -10,7 +10,7 @@ from std_msgs.msg import Int8, Float64
 from geometry_msgs.msg import PoseStamped, Point
 from basic_controller.msg import Waypoint
 
-WAYPOINT_ALTITUDE = 50
+WAYPOINT_ALTITUDE = 30
 # DISTANCE_THRESHOLD = 2
 
 def distance(p1, p2):
